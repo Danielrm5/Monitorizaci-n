@@ -11,82 +11,79 @@
 - **Interfaz de red principal:** `eno1`
 - **Dirección IP:** `172.26.12.104`
 
-Comprobado con `ip -br addr`:
-```text
-eno1             UP             172.26.12.104/16 fe80::f6b5:20ff:fe40:51a1/64
-```
+![ip -br addr](img/Moni/1.png)
 
 ### 2.- Anota la puerta de enlace predeterminada
 - **Puerta de enlace predeterminada:** `172.26.0.1` (a través de `eno1`)
-
-Comprobado con `ip route`:
-```text
-default via 172.26.0.1 dev eno1 proto dhcp src 172.26.12.104 metric 100
-```
 
 ### 3.- Indica la dirección de red y su prefijo o máscara
 - **Dirección de red:** `172.26.0.0`
 - **Prefijo:** `/16`
 - **Máscara de red:** `255.255.0.0`
 
+![ip route](img/Moni/2.png)
+
 ---
 
 ## 2.- Analizar y renovar una entrada ARP
 
 ### 1.- IP del ordenador del profesor y comprobación de red local IPv4
-- **IP del profesor:** `IP_PROFESOR` *(pendiente de sustituir por la IP que facilite el profesor)*.
-- **Comprobación:** Como nuestra red es `172.26.0.0/16` (máscara `255.255.0.0`), cualquier IP que empiece por **`172.26.X.Y`** (entre `172.26.0.1` y `172.26.255.254`) pertenece a la misma red local IPv4.
+- **IP del profesor:** `172.26.12.17`
+- **Comprobación:** Como nuestra red es `172.26.0.0/16` (máscara `255.255.0.0`), la IP `172.26.12.17` pertenece a la misma red local IPv4 que nuestro equipo (`172.26.12.104/16`).
 
 ### 2.- Ejecuta los siguientes comandos e indica qué hace cada uno
 
 #### `arp -a`
-Muestra la tabla ARP actual del sistema en formato BSD, intentando resolver los nombres de host (DNS inverso) junto a su dirección IP, dirección MAC y la interfaz asociada.
-```text
-argos.rodrigocaro.fw (172.26.0.1) en 64:62:66:25:50:b0 [ether] en eno1
-```
+Muestra la tabla ARP actual del sistema en formato BSD, intentando resolver los nombres de host (DNS inverso) junto a su dirección IP, dirección MAC y la interfaz asociada. En la captura aparecen la puerta de enlace (`argos.rodrigocaro.fw` / `172.26.0.1`), dos equipos de la red local (`172.26.20.3` y `172.26.20.6` en `eno1`) y dos de `vboxnet0` (`192.168.59.100` y `192.168.59.101`).
+
+![arp -a](img/Moni/3.png)
 
 #### `arp -n`
-Muestra la misma tabla ARP pero en formato numérico (`-n`), es decir, **sin resolver nombres de host**, lo que hace que sea más rápido y muestre directamente las direcciones IP.
-```text
-Dirección                TipoHW  DirecciónHW         Indic Máscara         Interfaz
-172.26.0.1               ether   64:62:66:25:50:b0   C                     eno1
-```
+Muestra la misma tabla ARP pero en formato numérico (`-n`), es decir, **sin resolver nombres de host**, lo que acelera la consulta y muestra directamente las direcciones IP (`172.26.0.1`, `172.26.20.3`, `172.26.20.6`, `192.168.59.100` y `192.168.59.101`).
+
+![arp -n](img/Moni/4.png)
 
 #### `ip neigh`
-Comando moderno de la suite `iproute2` que muestra la tabla de vecinos (caché ARP en IPv4 y NDP en IPv6), indicando la IP, la interfaz (`dev`), la dirección MAC (`lladdr`) y el estado de la entrada (por ejemplo, `REACHABLE`, `STALE`, `FAILED`).
-```text
-172.26.0.1 dev eno1 lladdr 64:62:66:25:50:b0 REACHABLE
-```
+Comando moderno de la suite `iproute2` que muestra la tabla de vecinos (caché ARP en IPv4 y NDP en IPv6), indicando la IP, la interfaz (`dev`), la dirección MAC (`lladdr`) y el estado de cada entrada (`REACHABLE` para `172.26.0.1` y `STALE` para las demás).
+
+![ip neigh](img/Moni/5.png)
 
 ### 3.- ¿Qué MAC aparece asociada a la puerta de enlace? ¿Por qué la tabla ARP no muestra todos los equipos de la red?
-- **MAC asociada a la puerta de enlace (`172.26.0.1`):** `64:62:66:25:50:b0` (interfaz `eno1`).
+- **MAC asociada a la puerta de enlace (`172.26.0.1`):** `64:62:66:25:50:b0` (en la interfaz `eno1`).
 - **¿Por qué no muestra todos los equipos de la red?**  
   Porque la tabla ARP funciona como una **caché dinámica**: el sistema operativo solo aprende y guarda las asociaciones IP-MAC de los equipos con los que se ha comunicado recientemente. Si no ha habido tráfico previo con otros equipos de la red, no aparecen en la tabla (y además las entradas caducan pasado un tiempo si no se utilizan).
 
 ### 4.- Genera y consulta la entrada del profesor
-Sustituyendo `IP_PROFESOR` por la IP real del profesor:
+Ejecutamos `ping` a la IP del profesor (`172.26.12.17`):
 ```bash
-ping -c 2 IP_PROFESOR
-ip neigh show IP_PROFESOR
+ping -c 2 172.26.12.17
 ```
-- `ping -c 2 IP_PROFESOR` envía 2 paquetes ICMP Echo Request; para poder enviarlos en la red local, el equipo resuelve primero la MAC mediante ARP y la guarda en la caché.
-- `ip neigh show IP_PROFESOR` muestra la entrada recién generada con su dirección MAC y estado (`REACHABLE`).
+Se transmiten 2 paquetes y se reciben 2 (`0% packet loss`).
+
+![ping -c 2 172.26.12.17](img/Moni/6.png)
+
+Consultamos su entrada en la tabla de vecinos:
+```bash
+ip neigh show 172.26.12.17
+```
+Aparece la entrada `172.26.12.17 dev eno1 lladdr f4:b5:20:40:51:6f REACHABLE`.
+
+![ip neigh show 172.26.12.17](img/Moni/7.png)
 
 ### 5.- Elimina únicamente esa asociación en tu ordenador
-Sustituyendo `IP_PROFESOR` por la IP del profesor y `eno1` como interfaz:
 ```bash
-sudo ip neigh del IP_PROFESOR dev eno1
-ip neigh show IP_PROFESOR
+sudo ip neigh del 172.26.12.17 dev eno1
+ip neigh show 172.26.12.17
 ```
 *(Nota: `ip neigh del` requiere privilegios de superusuario con `sudo`).*  
-Al ejecutar `ip neigh show IP_PROFESOR` inmediatamente después, la entrada aparece eliminada (o en estado `FAILED`/vacía hasta que vuelva a producirse tráfico).
+Al ejecutar `ip neigh show 172.26.12.17` inmediatamente después, la entrada desaparece (o pasa a `FAILED`) hasta que vuelva a producirse tráfico.
 
 ### 6.- Si no se genera automáticamente, puedes hacerlo:
 ```bash
-ping -c 2 IP_PROFESOR
-ip neigh show IP_PROFESOR
+ping -c 2 172.26.12.17
+ip neigh show 172.26.12.17
 ```
-Al volver a hacer `ping`, el sistema lanza de nuevo una petición ARP y regenera la entrada en la tabla de vecinos con la MAC del profesor.
+Al volver a hacer `ping`, el sistema lanza de nuevo una petición ARP y regenera la entrada en la tabla de vecinos con la MAC `f4:b5:20:40:51:6f` en estado `REACHABLE`.
 
 ---
 
@@ -96,38 +93,36 @@ Al volver a hacer `ping`, el sistema lanza de nuevo una petición ARP y regenera
 ```bash
 nmap -sn 172.26.20.0-255
 ```
-*(Nota: en el enunciado aparece `172.26.0-255`, pero para el rango indicado `172.26.20.0`–`172.26.20.255` el comando correcto es `nmap -sn 172.26.20.0-255` o `nmap -sn 172.26.20.0/24`).*
+Se escanearon 256 direcciones IP en 3.91 segundos y se detectaron **2 equipos activos**:
+- `172.26.20.3` (`0.00045s latency`)
+- `172.26.20.6` (`0.00032s latency`)
 
-**Resultado obtenido:**
-```text
-Starting Nmap 7.98 ( https://nmap.org ) at 2026-11-17 10:43 +0100
-Nmap scan report for 172.26.20.3
-Host is up (0.00039s latency).
-Nmap scan report for 172.26.20.6
-Host is up (0.00043s latency).
-Nmap done: 256 IP addresses (2 hosts up) scanned in 4.01 seconds
-```
-Se han detectado **2 equipos activos** (`172.26.20.3` y `172.26.20.6`) de las 256 direcciones IP analizadas.
+![nmap -sn 172.26.20.0-255](img/Moni/8.png)
 
 ### 2.- ¿Qué hace exactamente la opción `-sn`?
-La opción **`-sn`** (*Ping Scan* / descubrimiento de hosts sin escaneo de puertos) indica a `nmap` que **únicamente compruebe qué equipos están activos (encendidos/responden)** en la red o rango indicado, **sin realizar ningún escaneo de puertos** sobre ellos.
+La opción **`-sn`** (*Ping Scan* / descubrimiento de hosts sin escaneo de puertos) indica a `nmap` que **únicamente compruebe qué equipos están activos** en la red o rango indicado, **sin realizar ningún escaneo de puertos** sobre ellos.
 
 ---
 
 ## 4.- Examinar puertos y servicios
 
-### 1.- Escanea exclusivamente la máquina objetivo indicada por el profesor
-Sustituyendo `IP_OBJETIVO` por la IP de la máquina objetivo:
+### 1.- Escanea exclusivamente la máquina objetivo indicada por el profesor (`172.26.12.17`)
 
-```bash
-nmap IP_OBJETIVO
-```
-Realiza un escaneo básico de los **1000 puertos TCP más comunes** para detectar cuáles están abiertos, cerrados o filtrados, y muestra el servicio estándar asociado a cada puerto.
+#### Escaneo de puertos (`nmap -Pn 172.26.12.17`)
+Al escanear la IP `172.26.12.17` con `-Pn` (para omitir el descubrimiento previo de host si bloquea las sondas de Nmap), se detectan **5 puertos TCP abiertos** (y 995 filtrados sin respuesta):
+- `22/tcp` — `ssh`
+- `2222/tcp` — `EtherNetIP-1`
+- `3000/tcp` — `ppp`
+- `8000/tcp` — `http-alt`
+- `8080/tcp` — `http-proxy`
 
-```bash
-nmap -sV IP_OBJETIVO
-```
-Escanea los puertos abiertos y además intenta identificar el **servicio exacto y su versión** que está escuchando en cada puerto.
+![nmap -Pn 172.26.12.17](img/Moni/9.png)
+
+#### Escaneo de versiones (`nmap -sV 172.26.12.17`)
+Al ejecutar `nmap -sV 172.26.12.17` sin `-Pn`, Nmap indica:
+`Note: Host seems down. If it is really up, but blocking our ping probes, try -Pn` (`0 hosts up`), ya que la máquina objetivo bloquea las sondas de descubrimiento de Nmap (por eso es necesario añadir `-Pn`, es decir, `nmap -sV -Pn 172.26.12.17`, para que escanee los puertos y detecte las versiones).
+
+![nmap -sV 172.26.12.17](img/Moni/10.png)
 
 #### ¿Qué hace la opción `-sV`?
-La opción **`-sV`** (*Service/Version detection*) activa la **detección de versiones**: `nmap` se conecta a los puertos abiertos encontrados, envía sondas específicas y analiza las respuestas o *banners* para averiguar qué aplicación y versión concreta está ejecutando ese servicio (por ejemplo, `OpenSSH 8.9p1`, `Apache httpd 2.4.52`, etc.).
+La opción **`-sV`** (*Service/Version detection*) activa la **detección de versiones**: `nmap` se conecta a los puertos abiertos encontrados, envía sondas específicas y analiza las respuestas o *banners* para averiguar qué aplicación y versión concreta está ejecutando ese servicio.
